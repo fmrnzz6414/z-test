@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ゼンリン重点学習テスト (全100問収録)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; background-color: #f3f4f6; }
+        .hidden { display: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="text-gray-800 flex flex-col h-screen">
+
+<div id="app" class="max-w-md mx-auto bg-white h-full shadow-md flex flex-col relative overflow-hidden w-full">
+    
+    <!-- Header -->
+    <header class="bg-teal-700 text-white p-4 shadow-md z-10 flex-shrink-0">
+        <h1 class="text-xl font-bold text-center">ゼンリン 重点学習テスト</h1>
+        <div id="progress" class="text-sm text-center mt-1 opacity-90 font-bold"></div>
+    </header>
+
+    <!-- Menu Screen -->
+    <div id="start-screen" class="p-6 flex-1 flex flex-col justify-center items-center overflow-y-auto fade-in">
+        <h2 class="text-2xl font-bold mb-2 text-teal-800">モード選択</h2>
+        <p class="text-sm text-gray-600 mb-8 text-center">
+            出題プール（全100問）から20問を出題します。<br>ご自身の学習状況に合わせてモードを選んでください。
+        </p>
+        
+        <div class="w-full space-y-4">
+            <button onclick="startMode('top20')" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-4 rounded-xl shadow-lg transition duration-200">
+                🔥 最重要20問 (記述＋選択)<br><span class="text-xs font-normal opacity-90">絶対に押さえるべき厳選20問</span>
+            </button>
+            <button onclick="startMode('desc')" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 px-4 rounded-xl shadow-lg transition duration-200">
+                📝 記述系特化 (ランダム20問)<br><span class="text-xs font-normal opacity-90">決算・ZGP・ニュース等(全50問から抽出)</span>
+            </button>
+            <button onclick="startMode('pdf')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-4 rounded-xl shadow-lg transition duration-200">
+                📄 PDF選択系特化 (ランダム20問)<br><span class="text-xs font-normal opacity-90">コンセプトブック(全50問から抽出)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Question Screen -->
+    <div id="question-screen" class="hidden p-5 flex-1 flex flex-col overflow-y-auto pb-24 fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <span id="q-type-badge" class="px-2 py-1 text-xs font-bold rounded"></span>
+            <span id="q-importance-badge" class="px-2 py-1 text-xs font-bold rounded"></span>
+        </div>
+        
+        <h3 id="question-text" class="text-lg font-bold mb-6 leading-relaxed"></h3>
+
+        <!-- Choices Area -->
+        <div id="choices-container" class="flex flex-col space-y-3"></div>
+
+        <!-- Descriptive Area -->
+        <div id="descriptive-container" class="hidden flex flex-col space-y-3">
+            <input type="text" id="desc-input" placeholder="回答を入力 (例: 780)" class="border-2 border-gray-300 rounded-lg p-3 text-lg focus:outline-none focus:border-teal-500 w-full">
+            <button onclick="checkDescriptive()" class="bg-teal-600 text-white font-bold py-3 rounded-lg shadow">回答する</button>
+        </div>
+
+        <!-- Explanation Area -->
+        <div id="explanation-area" class="hidden mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200 fade-in shadow-inner">
+            <h4 id="result-title" class="font-bold text-xl mb-2"></h4>
+            <p id="explanation-text" class="text-sm mb-4 leading-relaxed"></p>
+            <span class="text-xs font-bold text-gray-500 bg-gray-200 px-2 py-1 rounded">出典: <span id="source-text"></span></span>
+            
+            <button onclick="nextQuestion()" class="mt-5 w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 rounded-lg shadow">次の問題へ ➡</button>
+        </div>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="result-screen" class="hidden p-6 flex-1 flex flex-col justify-center items-center fade-in">
+        <h2 class="text-2xl font-bold mb-4 text-teal-800">テスト完了！</h2>
+        <div class="text-7xl mb-4" id="score-emoji">🎉</div>
+        <p class="text-2xl font-bold mb-2">正答率: <span id="score-text" class="text-teal-600"></span></p>
+        <p class="text-sm text-gray-600 mb-8 font-bold" id="detail-text"></p>
+        <button onclick="location.reload()" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 px-4 rounded-xl shadow-lg">
+            トップメニューに戻る
+        </button>
+    </div>
+
+    <!-- Footer / Skip Button -->
+    <div id="footer-controls" class="hidden absolute bottom-0 w-full bg-white border-t border-gray-200 p-3 flex justify-end z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button id="skip-btn" onclick="skipQuestion()" class="text-gray-500 hover:text-gray-700 font-bold py-2 px-4 rounded border border-gray-300 bg-gray-50">
+            スキップ ⏭
+        </button>
+    </div>
+
+</div>
+
+<script>
+    // Sources map
+    const SRC = [
+        "2026年3月期 決算説明資料", "2027年3月期 第1四半期決算", "ZENRIN GROWTH PLAN 2030",
+        "ニュースリリース", "企業概要 / 業績ハイライト", "著作権について (データコム)",
+        "個人情報保護方針", "コンセプトブック (PDF)"
+    ];
+
+    // DB: [Type(0:Desc,1:Choice), isTop20(1:Yes,0:No), Importance(1:High,0:Low), Question, Answers/Choices, CorrectIdx, Explanation, SourceIdx]
+    const rawData = [
+        // --- 記述系 50問 ---
+        [0, 1, 1, "2026年3月期の通期連結売上高実績は約いくらか？(百万円単位または数字のみ)", ["64277", "64,277"], -1, "実績は64,277百万円（約642億円）です。3期ぶりの減収となりました。", 0],
+        [0, 0, 1, "2026年3月期のEBITDA実績はいくらか？(百万円)", ["9137", "9,137"], -1, "9,137百万円です。前年比4.6%減となりました。", 0],
+        [0, 1, 1, "2026年3月期の営業利益実績はいくらか？(百万円)", ["3502", "3,502"], -1, "3,502百万円です。前年比10.7%減となりました。", 0],
+        [0, 0, 0, "2026年3月期において、各利益が減益となる中、唯一「増益」となった利益項目は何か？", ["当期純利益", "親会社株主に帰属する当期純利益"], -1, "親会社株主に帰属する当期純利益のみ、前年比5.1%の増益（2,738百万円）となりました。", 0],
+        [0, 0, 1, "2026年3月期実績のROE（自己資本当期純利益率）は何%か？", ["5.5", "5.5%"], -1, "実績は5.5%です。ZGP2030では10%以上を目標としています。", 0],
+        [0, 0, 0, "2026年3月期実績において、フリーキャッシュ・フローは収入と支出のどちらとなったか？", ["収入", "プラス"], -1, "523百万円の収入（プラス）となりました。", 0],
+        [0, 1, 1, "2027年3月期 第1四半期の売上高は「〇期ぶり」の減収となった。〇に入る数字は？", ["6", "6期"], -1, "公共事業の反動減等により、6期ぶりの減収となりました。", 1],
+        [0, 0, 1, "2027年3月期 第1四半期の営業利益は、前年同期比で約何億円の減少となったか？", ["7", "7億", "7億円"], -1, "前年同期比で約7億円の減益となりました。成長投資や基盤費用の増加が影響しています。", 1],
+        [0, 0, 1, "27年3月期1Qにおいて、公共ソリューション事業減収の主な要因となった、前年に計上された反動減のデータとは「〇〇地図データ」か？", ["住宅", "住宅地図"], -1, "消防向け住宅地図データ売上の反動減が影響しました。", 1],
+        [0, 0, 1, "27年3月期1Qにおいて、モビリティ事業で販売減少が見られたのは何用データか？", ["カーナビ", "カーナビゲーション"], -1, "カーナビゲーション用データの販売が減少しました。", 1],
+        [0, 0, 1, "中長期経営計画「ZGP2030」の最終年度は西暦何年3月期か？", ["2030", "2030年"], -1, "2030年3月期を最終年度としています。", 2],
+        [0, 1, 1, "ZGP2030の最終年度における連結売上高の目標数値は？（〇〇億円）", ["780", "780億"], -1, "最重要の定量目標として「780億円」を掲げています。", 2],
+        [0, 0, 1, "ZGP2030の最終年度におけるEBITDA目標数値は？（〇〇億円）", ["150", "150億"], -1, "EBITDAの目標は「150億円」です。", 2],
+        [0, 0, 1, "ZGP2030の最終年度における営業利益目標数値は？（〇〇億円）", ["80", "80億"], -1, "営業利益の目標は「80億円」です。", 2],
+        [0, 1, 1, "ZGP2030の最終年度におけるROE（自己資本当期純利益率）の目標は何％以上か？", ["10", "10%"], -1, "資本効率の指標としてROE「10％以上」を目標としています。", 2],
+        [0, 0, 1, "2027年3月期の通期売上高予想はいくらか？（〇〇億円）", ["660", "660億"], -1, "通期では増収を見込み、「660億円」を予想しています。", 1],
+        [0, 0, 0, "2027年3月期の通期EBITDA予想はいくらか？（〇〇億円）", ["95", "95億"], -1, "通期のEBITDA予想は「95億円」です。", 1],
+        [0, 1, 1, "企業・自治体のDXを推進するセミオーダー型業務支援クラウドサービスの名称は？(英字)", ["ZENRIN Maps Studio", "ゼンリンマップススタジオ"], -1, "「ZENRIN Maps Studio」です。必要な機能とコンテンツを選んでカスタマイズできます。", 3],
+        [0, 0, 0, "ZENRIN Maps Studioが提供開始された年月は？(例:2026年4月)", ["2026年4月", "26年4月"], -1, "2026年4月27日より提供開始されました。", 3],
+        [0, 0, 1, "2026年5月、ゼンリンの地図データが採用されたJVCケンウッドのカーナビゲーションの新モデル名称は？", ["彩速ナビ", "彩速"], -1, "市場で人気の「彩速ナビ」新モデルに採用されました。", 3],
+        [0, 0, 0, "彩速ナビと連携する、ゼンリンが開発したスマホアプリの名称は「〇〇〇〇ナビコネクト for KENWOOD」？", ["ゼンリン", "ZENRIN"], -1, "「ゼンリンナビコネクト for KENWOOD」です。", 3],
+        [0, 1, 1, "2026年9月、ゼンリンが初めて選出されたグローバル評価は「世界の〇〇〇〇企業トップ100社」か？(漢字4文字)", ["地理空間"], -1, "「世界の地理空間企業トップ100社」に選出されました。", 3],
+        [0, 0, 0, "株式会社ゼンリンの創業年は西暦何年か？", ["1948", "1948年"], -1, "1948年（昭和23年）4月に創業しました。", 4],
+        [0, 0, 0, "株式会社ゼンリンの設立年は西暦何年か？", ["1961", "1961年"], -1, "1961年（昭和36年）4月に設立されました。", 4],
+        [0, 0, 1, "ゼンリンの本社所在地がある都道府県と市は？(〇〇県〇〇市)", ["福岡県北九州市", "北九州市"], -1, "福岡県北九州市戸畑区に本社があります。", 4],
+        [0, 0, 0, "ゼンリンの東京本社が入居している千代田区のビルの名称は？", ["ワテラスタワー", "ワテラス"], -1, "神田淡路町のワテラスタワーに入居しています。", 4],
+        [0, 0, 1, "ゼンリンが上場している証券取引所は、東京証券取引所（プライム市場）ともう一つはどこか？", ["福岡", "福岡証券取引所", "福証"], -1, "東京証券取引所と福岡証券取引所に上場しています。", 4],
+        [0, 1, 1, "企業理念（ZENRIN WAY）の冒頭「〇・時空間情報の創造により人びとの生活に貢献します」の〇に入る漢字一文字は？", ["知"], -1, "「知・時空間情報」の創造により社会に貢献することを掲げています。", 4],
+        [0, 0, 1, "著作権コンプライアンスに準拠し、複製許諾付きで利用できる地図切り出しサービスの名称は？(英字)", ["AreaCutter", "エリアカッター"], -1, "ゼンリンデータコムが提供する「AreaCutter」です。", 5],
+        [0, 0, 1, "地図の著作権を侵害した場合、法人が科される可能性のある最大罰金額は？(〇億円)", ["3", "3億", "3億円"], -1, "法人の場合は3億円以下の罰金が科されるリスクがあります。", 5],
+        [0, 1, 1, "地図は著作権法上、「何の著作物」として保護の対象となっているか？", ["図形", "図形の著作物"], -1, "著作権法第10条1項6号の「図形の著作物」に該当します。", 5],
+        [0, 0, 1, "Googleマップ等を無断で自社Webサイトに掲載した場合、複製権ともう一つ侵害する可能性のある権利は何か？", ["公衆送信権", "公衆送信"], -1, "サーバーへアップロードして送信可能状態にするため、公衆送信権(送信可能化権)の侵害となります。", 5],
+        [0, 0, 0, "地図データを無断でフリマサイト等で販売する行為は、何の権利の侵害になるか？", ["譲渡権"], -1, "複製物を譲渡により公衆に提供する「譲渡権」の侵害です。", 5],
+        [0, 0, 0, "著作者の許可なく有料で地図を貸し出す行為は、何の権利の侵害になるか？", ["貸与権"], -1, "公衆に向けて貸与する「貸与権」の侵害となります。", 5],
+        [0, 0, 0, "著作権侵害における個人の場合の最大懲役年数は何年か？", ["10", "10年"], -1, "個人の場合は10年以下の懲役または1000万円以下の罰金となります。", 5],
+        [0, 0, 1, "ウェブサイトから個人情報を取得する際、安全に送受信するために用いるデータ暗号化通信の名称(アルファベット3文字)は？", ["SSL"], -1, "SSL（Secure Sockets Layer）を用いて暗号化しています。", 6],
+        [0, 0, 1, "保有個人データの開示や訂正等のご請求における、各種請求書の送付先(窓口)の名称は？", ["カスタマーサポートセンター", "カスタマーサポート"], -1, "「株式会社ゼンリン カスタマーサポートセンター」が窓口です。", 6],
+        [0, 0, 1, "ゼンリンのプライバシーポリシーにおいて、個人情報の提供に保護者の同意が必要としているのは「〇歳未満」の子供か？", ["16", "16歳"], -1, "16歳未満のお子様は保護者の同意が必要と規定しています。", 6],
+        [0, 0, 0, "個人情報を取扱う従業者への教育研修の実施は、4つの安全管理措置のうち「〇〇的」安全管理措置に該当するか？", ["人的", "人的安全管理措置"], -1, "教育研修は「人的」安全管理措置に該当します。", 6],
+        [0, 0, 0, "入館管理や機器の持ち込み制限の実施は、4つの安全管理措置のうち「〇〇的」安全管理措置に該当するか？", ["物理的", "物理的安全管理措置"], -1, "入館管理などは「物理的」安全管理措置です。", 6],
+        [0, 0, 0, "アクセス管理や外部からの不正アクセス防止措置は、4つの安全管理措置のうち「〇〇的」安全管理措置に該当するか？", ["技術的", "技術的安全管理措置"], -1, "システム的な制御であるため「技術的」安全管理措置です。", 6],
+        [0, 1, 1, "中長期経営計画の略称「ZGP」とは何の頭文字か？(英単語3つ)", ["ZENRIN GROWTH PLAN", "Zenrin Growth Plan"], -1, "ZENRIN GROWTH PLANの略称です。", 2],
+        [0, 0, 1, "2027年3月期 1Q決算において、前年同期比で売上が増加(プラス)となったのは何ソリューション事業か？", ["マーケティング", "マーケティングソリューション"], -1, "マップマーケティング社の事業承継等によりマーケティングソリューションが増収となりました。", 1],
+        [0, 0, 0, "26年3月期実績において、モビリティソリューション事業の売上高はいくらか？(億円)", ["158", "158億"], -1, "モビリティ事業の実績は158億円でした。", 0],
+        [0, 0, 0, "26年3月期実績において、公共ソリューション事業の売上高はいくらか？(億円)", ["98", "98億"], -1, "公共事業の実績は98億円でした。", 0],
+        [0, 0, 0, "個人情報の適切な取り扱いを実現するため設置する責任者の役職名は？", ["個人情報保護管理責任者", "保護管理責任者"], -1, "個人情報保護管理責任者を設置しています。", 6],
+        [0, 0, 1, "ZGP2030の定量目標達成に向け、限界利益率を向上させるためにシフトを加速させるのは「〇〇〇〇サービス」か？", ["ストック", "ストックサービス"], -1, "ストックサービスやソリューションサービスへのシフトを加速させます。", 2],
+        [0, 0, 0, "2026年9月に新しい観光体験アイデアの共創ワークショップを共同開催した国立大学は？", ["九州大学", "九大"], -1, "ゼンリン、九州大学、JR博多シティ、九州博報堂で共創ワークショップを開催しました。", 3],
+        [0, 0, 0, "2026年3月期実績のEBITDAマージン(率)は何%か？", ["14.2", "14.2%"], -1, "実績は14.2%となりました。", 0],
+        [0, 0, 0, "2026年3月期実績の営業利益率は何%か？", ["5.4", "5.4%"], -1, "実績は5.4%となりました。", 0],
+
+        // --- PDF選択系 50問 ---
+        [1, 1, 1, "ZGP2030(中長期経営計画)はいつから始まる計画か？", ["2024年4月", "2025年4月", "2026年4月", "2030年4月"], 1, "ZGP2030は「2025年4月」から始まる計画です。", 7],
+        [1, 1, 1, "ZGP2030における最も重要なキーワードは何か？", ["安定", "挑戦", "変革", "飛躍"], 2, "ZGP2030では、今までのプロセスや意識を前提とせずスピード感をもった「変革」をキーワードとしています。", 7],
+        [1, 0, 1, "ZGP2030は、今まで投資してきた何の開発を完遂するフェーズと位置付けられているか？", ["基盤開発", "製品開発", "海外拠点開発", "AI開発"], 0, "今まで投資してきた「基盤開発」を完遂し、収益化に向けた礎を構築するフェーズです。", 7],
+        [1, 0, 0, "ZGP2030は、収益化に向けた次世代ゼンリンの確固たる何を構築するフェーズか？", ["ブランド", "礎 (いしずえ)", "ネットワーク", "シェア"], 1, "次世代ゼンリンの確固たる「礎」を構築するフェーズとされています。", 7],
+        [1, 1, 1, "コンセプトブックに記載されている「ゼンリンが変わらない強み」はいくつ挙げられているか？", ["2つ", "3つ", "4つ", "5つ"], 1, "「唯一無二の時空間情報DB」「豊富な顧客基盤」「拠点網・ブランド力」の3つです。", 7],
+        [1, 0, 1, "ゼンリンの強みの一つである時空間情報データベースを表現する言葉として正しいものは？", ["国内最大の", "唯一無二の", "世界最速の", "完全自動化された"], 1, "「唯一無二の時空間情報データベース」と表現されています。", 7],
+        [1, 0, 1, "ゼンリンの強みである顧客基盤について、正しい表現はどれか？", ["IT業界に特化した顧客基盤", "大企業に限定された顧客基盤", "あらゆる業界の豊富な顧客基盤", "海外を中心とした顧客基盤"], 2, "「あらゆる業界の豊富な顧客基盤」が強みとして挙げられています。", 7],
+        [1, 0, 1, "ゼンリンの拠点網に関する強みの表現として正しいものは？", ["首都圏に集中した拠点網", "グローバルな拠点網", "地域に根差した拠点網・ブランド力", "オンライン特化の拠点網"], 2, "「地域に根差した拠点網・ブランド力」が強みです。", 7],
+        [1, 1, 1, "ゼンリンの強みは、活用できないとどのような弱みに変化すると警告されているか？", ["競合に模倣される", "膨大な固定費を費やす弱み", "システムの老朽化を招く", "顧客離れを引き起こす"], 1, "活用できないと「膨大な固定費を費やす弱みにも変化する」と記載されています。", 7],
+        [1, 0, 0, "ZGP2030を推進する上で、時空間データベースを高度化し収益を拡大するための「変革ポイント」はいくつ定義されているか？", ["3つ", "5つ", "7つ", "10つ"], 2, "7つの変革ポイントが定義されています。", 7],
+        [1, 1, 1, "変革ポイントの1つ目において、何会社への変革を目指しているか？", ["地図提供会社", "ITコンサルティング会社", "地理空間情報サービス会社", "データ分析専門会社"], 2, "「地図提供会社」から「地理空間情報サービス会社」への変革を目指しています。", 7],
+        [1, 0, 0, "価値創造企業への意識改革において、誰の視点による価値創造を徹底するとされているか？", ["開発者視点", "株主視点", "経営者視点", "利用者視点"], 3, "「利用者視点」による価値創造企業への意識改革が掲げられています。", 7],
+        [1, 0, 1, "変革の2つ目において、時空間DBは何社会の基盤に資するものへ進化・深化させるとあるか？", ["デジタルツイン社会", "スマートシティ社会", "メタバース社会", "キャッシュレス社会"], 0, "「デジタルツイン社会の基盤に資する高度時空間DBへ進化・深化」と記載されています。", 7],
+        [1, 0, 1, "変革の3つ目において、何技術の確立によって利用価値を創造するとされているか？", ["AI解析技術", "サービス技術", "ブロックチェーン技術", "自動運転技術"], 1, "「サービス技術確立によるユーザビリティと利用価値の創造」です。", 7],
+        [1, 0, 0, "サービス技術の確立により、創造するものは「利用価値」ともう一つは何か？", ["アクセシビリティ", "セキュリティ", "ユーザビリティ", "スケーラビリティ"], 2, "「ユーザビリティ」と利用価値の創造です。", 7],
+        [1, 0, 1, "変革の4つ目において、拡大を目指す顧客基盤は「地域」と何か？", ["官公庁", "企業", "個人", "海外"], 1, "「地域と企業の顧客基盤の拡大」です。", 7],
+        [1, 0, 1, "変革の5つ目において、社内DXによって何の見える化を活用するとされているか？", ["営業利益", "経営情報", "社員のモチベーション", "顧客満足度"], 1, "社内DXによる業務効率化と「経営情報の見える化」を活用するとしています。", 7],
+        [1, 0, 0, "社内DXによって構築を目指す基盤は何か？", ["アナログ基盤", "デジタル基盤", "物理サーバー基盤", "ブロックチェーン基盤"], 1, "「デジタル基盤」の構築を目指します。", 7],
+        [1, 0, 1, "変革の6つ目（人財基盤の構築）において、企業とともに成長するのは誰か？", ["個人", "地域社会", "パートナー企業", "株主"], 0, "「個人と企業がともに成長する人財基盤の構築」とされています。", 7],
+        [1, 1, 1, "変革の7つ目において、新たな顧客基盤領域の獲得として目指しているものは何か？", ["海外進出", "M&Aの推進", "新規事業創出", "既存事業の売却"], 2, "「新たな顧客基盤領域の獲得（新規事業創出）」です。", 7],
+        [1, 1, 1, "ZGP2030の価値創造モデルにおいて、一番土台（下部）に位置づけられている基盤はどれか？", ["デジタル基盤", "人財基盤", "経営基盤", "技術基盤"], 2, "土台となるのは「経営基盤（サステナビリティ経営）」です。", 7],
+        [1, 0, 0, "経営基盤の横に括弧書きで記載されている経営スタイルは何か？", ["アジャイル経営", "サステナビリティ経営", "トップダウン経営", "データドリブン経営"], 1, "「経営基盤（サステナビリティ経営）」と定義されています。", 7],
+        [1, 0, 1, "経営基盤の上に構築される3つの基盤に含まれないものはどれか？", ["デジタル基盤", "財務基盤", "技術基盤", "人財基盤"], 1, "財務基盤は含まれません。正しくはデジタル、技術、人財の3つです。", 7],
+        [1, 0, 0, "デジタル・技術・人財基盤の上に位置し、これらに支えられている基盤(ZiP)の正式名称は？", ["情報基盤", "地図基盤", "空間基盤", "顧客基盤"], 0, "「情報基盤 (ZiP)」です。", 7],
+        [1, 0, 1, "価値創造モデルの中核プロセスとして、「事業変革」「技術変革」ともう一つ挙げられている変革は何か？", ["財務変革", "意識変革", "組織変革", "営業変革"], 2, "「事業変革・技術変革・組織変革」の3つが定義されています。", 7],
+        [1, 1, 1, "ZGP2030が目指す最終的な価値創造は「〇〇社会における社会的価値創造」である。〇〇は？", ["情報", "共創", "競争", "循環型"], 1, "「共創社会における社会的価値創造」です。", 7],
+        [1, 0, 1, "企業理念（ZENRIN WAY）において、貢献する対象として明記されているのは？", ["日本経済の発展", "グローバル環境", "人びとの生活", "地域自治体"], 2, "「人びとの生活に貢献します」と明記されています。", 7],
+        [1, 0, 0, "企業理念は「〇・時空間情報の創造により…」から始まるが、〇に入る漢字は？", ["地", "知", "智", "値"], 1, "「知・時空間情報の創造」です。", 7],
+        [1, 0, 0, "ビジョン・ミッション・バリューの説明において、現実世界を単にどうするだけではないと述べているか？", ["データ化する", "3D化する", "ライブラリー化する", "地図化する"], 2, "「現実世界をライブラリー化するだけでなく…」と述べられています。", 7],
+        [1, 0, 1, "時空間情報について、どのような情報を強化すると述べているか？", ["位置情報", "属性情報", "意味情報", "リアルタイム情報"], 2, "「意味情報を強化し利用環境を最適化する」としています。", 7],
+        [1, 0, 0, "意味情報を強化し、利用環境を最適化することで何を創りだすか？", ["利益", "シェア", "利用価値", "新技術"], 2, "「利用価値を創りだし…」と記載されています。", 7],
+        [1, 0, 1, "創りだした「利用価値」を最終的に何価値としていくか？", ["経済的価値", "社会的価値", "環境的価値", "企業価値"], 1, "利用価値を創りだし、「社会的価値としていく」と言及されています。", 7],
+        [1, 0, 0, "ZGP2030において、今まで以上のスピードで大きく変革が必要な理由として挙げられているのは、顧客や社会の何に対応するためか？", ["変化", "クレーム", "要望", "予算減少"], 0, "「顧客や社会の変化に対応して…大きく変革が必要」とされています。", 7],
+        [1, 0, 1, "新規事業領域を創出するために、徹底的に洗い出すとされているものは「技術要素」と何か？", ["負債", "競合他社", "アセット", "過去の失敗"], 2, "「培ってきたアセットや技術要素を徹底的に洗い出し」と記載されています。", 7],
+        [1, 0, 1, "高度時空間DBが基盤として資する社会の姿とは何か？", ["ユビキタス社会", "デジタルツイン社会", "AIファースト社会", "情報化社会"], 1, "「デジタルツイン社会」の基盤に資するとされています。", 7],
+        [1, 0, 0, "中長期経営計画「ZGP2030」は、西暦何年までの計画を見据えているか？", ["2026年", "2028年", "2030年", "2035年"], 2, "名称の通り、2030年(3月期)を最終年度としています。", 7],
+        [1, 1, 1, "変化に対応した持続性の高い事業を推進するためのサイクルとして「創って・〇〇・売る」とある。〇〇は？", ["直して", "集めて", "作って", "分析して"], 2, "「創って・作って・売る」のサイクルを高速に回す、と定義されています。", 7],
+        [1, 0, 0, "サイクルを高速に回す目的は、変化に対応した「何の高い」事業を推進することか？", ["収益性", "持続性", "独占性", "話題性"], 1, "「持続性の高い事業を推進します」とされています。", 7],
+        [1, 0, 1, "新たなビジネスや顧客との持続的なビジネスを創出する際、自社単独だけでなく何を含めて推進するか？", ["他社協業", "外注化", "ボランティア", "行政委託のみ"], 0, "「他社協業も含め新規事業領域を創出し…」と記載されています。", 7],
+        [1, 0, 1, "ZGP2030を進める上で、企業軸として「変わらないもの」と位置付けられているのは？", ["事業領域", "ZENRIN WAY", "組織体制", "評価制度"], 1, "企業軸として変わらないものが「ZENRIN WAY」です。", 7],
+        [1, 0, 0, "ZENRIN WAYを構成する要素として言及されている3つは「ビジョン」「ミッション」と何か？", ["戦略", "バリュー", "ルール", "ターゲット"], 1, "「ビジョン、ミッション、バリューについて…」と言及されています。", 7],
+        [1, 0, 1, "ゼンリンがサービスを通じて創造を目指すものは何か？", ["利用価値", "競合優位", "圧倒的シェア", "低コスト体制"], 0, "「サービスを通じて利用価値を創造する会社へ変革」と宣言しています。", 7],
+        [1, 0, 0, "事業変革・技術変革・組織変革を実現し、企業として何を「確立する」のがZGP2030か？", ["マニュアル", "プロセス", "特許", "子会社"], 1, "「社会的価値を持続的に創造できる企業としてプロセスを確立する」とあります。", 7],
+        [1, 0, 0, "新規事業創出において、既存のビジネス領域「〇〇」に加え、とあるが〇〇は何か？", ["維持", "縮小", "拡大", "撤退"], 2, "「既存のビジネス領域拡大に加え…」と記載されています。", 7],
+        [1, 0, 1, "変革を要するものとして、今までの意識や組織に加えて何が挙げられているか？", ["社名", "プロセス", "商品名", "採用基準"], 1, "「今までのプロセスや意識、組織など前提としてきたものに対し…変革が必要」とあります。", 7],
+        [1, 0, 0, "3つの強みのうち、「地域に根差した〇〇・ブランド力」の〇〇は何か？", ["営業力", "技術力", "拠点網", "データ網"], 2, "「拠点網」です。", 7],
+        [1, 0, 0, "持続的成長を実現するためのプロセスを確立するにあたり、共創社会における何を持続的に創造するか？", ["経済的価値", "社会的価値", "株主価値", "従業員価値"], 1, "「社会的価値を持続的に創造できる企業として」とあります。", 7],
+        [1, 0, 0, "代表からのメッセージの結びにおいて、将来のゼンリンは何周年を迎えるとされているか？", ["50周年", "80周年", "100周年", "150周年"], 2, "「100周年を迎える将来のゼンリンを創っていきましょう」と結ばれています。", 7],
+        [1, 0, 0, "価値創造モデル図において、ZGP2030の「提供価値」として位置付けられている文言は何か？", ["利益最大化", "グローバル展開", "共創社会における社会的価値創造", "圧倒的データベース構築"], 2, "「共創社会における社会的価値創造」が提供価値として描かれています。", 7],
+        [1, 0, 0, "人財基盤の構築の項目で、「〇〇と企業がともに成長する」とあるが〇〇は？", ["個人", "地域", "社会", "家族"], 0, "「個人と企業がともに成長する」と記載されています。", 7]
+    ];
+
+    let currentQuestions = [];
+    let currentQIndex = 0;
+    let score = 0;
+    let skipped = 0;
+    let isAnswered = false;
+
+    // Shuffle Array Function
+    function shuffle(array) {
+        let currentIndex = array.length, randomIndex;
+        while (currentIndex != 0) {
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        }
+        return array;
+    }
+
+    function startMode(mode) {
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('question-screen').classList.remove('hidden');
+        document.getElementById('footer-controls').classList.remove('hidden');
+        
+        let pool = [];
+        if (mode === 'top20') {
+            // isTop20 == 1 (index 1 in rawData)
+            pool = rawData.filter(d => d[1] === 1);
+            pool = shuffle(pool);
+        } else if (mode === 'desc') {
+            // type == 0 (index 0)
+            pool = rawData.filter(d => d[0] === 0);
+            pool = shuffle(pool).slice(0, 20); // Random 20
+        } else if (mode === 'pdf') {
+            // type == 1
+            pool = rawData.filter(d => d[0] === 1);
+            pool = shuffle(pool).slice(0, 20); // Random 20
+        }
+        
+        currentQuestions = pool;
+        currentQIndex = 0;
+        score = 0;
+        skipped = 0;
+        showQuestion();
+    }
+
+    function showQuestion() {
+        isAnswered = false;
+        const qData = currentQuestions[currentQIndex];
+        const isDesc = qData[0] === 0;
+        const isHighImp = qData[2] === 1;
+
+        document.getElementById('progress').innerText = `Q. ${currentQIndex + 1} / ${currentQuestions.length}`;
+        
+        const typeBadge = document.getElementById('q-type-badge');
+        typeBadge.innerText = isDesc ? '📝 記述問題' : '🎯 4択問題';
+        typeBadge.className = `px-3 py-1 text-xs font-bold rounded-full ${isDesc ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`;
+        
+        const impBadge = document.getElementById('q-importance-badge');
+        impBadge.innerText = isHighImp ? '🔥 重要度: 高' : '⭐ 重要度: 低';
+        impBadge.className = `px-3 py-1 text-xs font-bold rounded-full ${isHighImp ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700'}`;
+        
+        document.getElementById('question-text').innerText = qData[3];
+        document.getElementById('explanation-area').classList.add('hidden');
+        document.getElementById('skip-btn').classList.remove('hidden');
+        document.getElementById('source-text').innerText = SRC[qData[7]];
+
+        const choicesContainer = document.getElementById('choices-container');
+        const descContainer = document.getElementById('descriptive-container');
+
+        if (!isDesc) {
+            choicesContainer.classList.remove('hidden');
+            descContainer.classList.add('hidden');
+            choicesContainer.innerHTML = '';
+            qData[4].forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left p-4 border-2 border-gray-200 rounded-xl bg-white hover:bg-blue-50 focus:bg-blue-100 transition duration-150 font-bold text-gray-700 shadow-sm';
+                btn.innerText = choice;
+                btn.onclick = () => checkChoice(index, btn);
+                choicesContainer.appendChild(btn);
+            });
+        } else {
+            choicesContainer.classList.add('hidden');
+            descContainer.classList.remove('hidden');
+            const inputField = document.getElementById('desc-input');
+            inputField.value = '';
+            inputField.disabled = false;
+            inputField.focus();
+        }
+    }
+
+    function checkChoice(selectedIndex, btnElement) {
+        if(isAnswered) return;
+        isAnswered = true;
+        const qData = currentQuestions[currentQIndex];
+        const correctIdx = qData[5];
+        
+        const buttons = document.getElementById('choices-container').children;
+        for (let btn of buttons) { btn.disabled = true; }
+        document.getElementById('skip-btn').classList.add('hidden');
+
+        let isCorrect = (selectedIndex === correctIdx);
+        if (isCorrect) score++;
+
+        btnElement.classList.remove('bg-white', 'hover:bg-blue-50');
+        if (isCorrect) {
+            btnElement.classList.add('bg-green-100', 'border-green-500', 'text-green-800');
+            showExplanation(true, "⭕ 正解！");
+        } else {
+            btnElement.classList.add('bg-red-100', 'border-red-500', 'text-red-800');
+            buttons[correctIdx].classList.remove('bg-white');
+            buttons[correctIdx].classList.add('bg-green-100', 'border-green-500');
+            showExplanation(false, "❌ 不正解...");
+        }
+    }
+
+    function checkDescriptive() {
+        if(isAnswered) return;
+        
+        const qData = currentQuestions[currentQIndex];
+        const inputField = document.getElementById('desc-input');
+        const userAnswer = inputField.value.trim();
+        
+        if (!userAnswer) return; // ignore empty
+
+        isAnswered = true;
+        inputField.disabled = true;
+        document.getElementById('skip-btn').classList.add('hidden');
+
+        // 全角半角スペース除去、小文字化で判定
+        const formattedUserAns = userAnswer.replace(/\s+/g, '').toLowerCase();
+        let isCorrect = qData[4].some(ans => {
+            const formattedAccept = ans.replace(/\s+/g, '').toLowerCase();
+            return formattedUserAns.includes(formattedAccept) || formattedAccept.includes(formattedUserAns);
+        });
+        
+        if (isCorrect) {
+            score++;
+            showExplanation(true, "⭕ 正解！");
+        } else {
+            showExplanation(false, `❌ 不正解... (模範解答: ${qData[4][0]})`);
+        }
+    }
+
+    function skipQuestion() {
+        if(isAnswered) return;
+        isAnswered = true;
+        skipped++;
+        document.getElementById('skip-btn').classList.add('hidden');
+        
+        const qData = currentQuestions[currentQIndex];
+        if (qData[0] === 1) { // choice
+            const buttons = document.getElementById('choices-container').children;
+            for (let btn of buttons) { btn.disabled = true; }
+            buttons[qData[5]].classList.add('bg-green-100', 'border-green-500');
+        } else {
+            document.getElementById('desc-input').disabled = true;
+        }
+        showExplanation(false, "⏭ スキップしました");
+    }
+
+    function showExplanation(isCorrect, title) {
+        const qData = currentQuestions[currentQIndex];
+        const expArea = document.getElementById('explanation-area');
+        const resTitle = document.getElementById('result-title');
+        
+        resTitle.innerText = title;
+        if(title.includes("スキップ")) {
+            resTitle.className = "font-bold text-xl mb-2 text-gray-600";
+        } else {
+            resTitle.className = `font-bold text-xl mb-2 ${isCorrect ? 'text-green-600' : 'text-red-600'}`;
+        }
+        
+        document.getElementById('explanation-text').innerText = qData[6];
+        expArea.classList.remove('hidden');
+        
+        // 自動スクロール
+        setTimeout(() => {
+            expArea.scrollIntoView({ behavior: "smooth", block: "end" });
+        }, 100);
+    }
+
+    function nextQuestion() {
+        currentQIndex++;
+        if (currentQIndex < currentQuestions.length) {
+            showQuestion();
+        } else {
+            showResult();
+        }
+    }
+
+    function showResult() {
+        document.getElementById('question-screen').classList.add('hidden');
+        document.getElementById('footer-controls').classList.add('hidden');
+        const resultScreen = document.getElementById('result-screen');
+        resultScreen.classList.remove('hidden');
+        document.getElementById('progress').innerText = "テスト完了";
+
+        const answered = currentQuestions.length - skipped;
+        const rate = answered === 0 ? 0 : Math.round((score / answered) * 100);
+        
+        document.getElementById('score-text').innerText = `${rate}％`;
+        document.getElementById('detail-text').innerHTML = `
+            出題数: ${currentQuestions.length}問<br>
+            正解: ${score}問 / 回答: ${answered}問<br>
+            スキップ: ${skipped}問
+        `;
+        
+        const emoji = document.getElementById('score-emoji');
+        if (rate === 100) emoji.innerText = "🏆";
+        else if (rate >= 80) emoji.innerText = "👏";
+        else if (rate >= 50) emoji.innerText = "👍";
+        else emoji.innerText = "💪";
+    }
+</script>
+
+</body>
+</html>
